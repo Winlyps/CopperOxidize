@@ -77,15 +77,23 @@ class CopperOxidize : JavaPlugin(), Listener {
                 }
             }
             executorService.submit {
-                val updates = batch.map { (block, nextStage) ->
-                    block to nextStage
-                }
-                server.scheduler.runTask(this, Runnable {
-                    updates.forEach { (block, nextStage) ->
-                        block.type = nextStage
+                try {
+                    val updates = batch.map { (block, nextStage) ->
+                        block to nextStage
                     }
-                })
-                updateCounter.addAndGet(-batch.size)
+                    server.scheduler.runTask(this, Runnable {
+                        try {
+                            updates.forEach { (block, nextStage) ->
+                                block.type = nextStage
+                            }
+                        } catch (e: Exception) {
+                            logger.severe("Error updating block types: ${e.message}")
+                        }
+                    })
+                    updateCounter.addAndGet(-batch.size)
+                } catch (e: Exception) {
+                    logger.severe("Error processing block updates: ${e.message}")
+                }
             }
             updateCounter.addAndGet(batch.size)
         }
