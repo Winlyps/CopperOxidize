@@ -8,10 +8,13 @@ import org.bukkit.event.block.BlockBreakEvent
 import org.bukkit.event.block.BlockPlaceEvent
 import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitRunnable
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class CopperOxidize : JavaPlugin(), Listener {
 
-    private val copperBlocks = mutableMapOf<Block, Material>()
+    private val copperBlocks = ConcurrentHashMap<Block, Material>()
+    private val blockUpdateQueue = ConcurrentLinkedQueue<Pair<Block, Material>>()
 
     override fun onEnable() {
         server.pluginManager.registerEvents(this, this)
@@ -46,14 +49,22 @@ class CopperOxidize : JavaPlugin(), Listener {
                     val (block, currentStage) = iterator.next()
                     val nextStage = getNextOxidationStage(currentStage)
                     if (nextStage != null) {
-                        block.type = nextStage
+                        blockUpdateQueue.add(Pair(block, nextStage))
                         copperBlocks[block] = nextStage
                     } else {
                         iterator.remove()
                     }
                 }
+                processBlockUpdates()
             }
         }.runTaskTimer(this, 30 * 60 * 20L, 30 * 60 * 20L) // 30 minutes = 30 * 60 * 20 ticks
+    }
+
+    private fun processBlockUpdates() {
+        while (!blockUpdateQueue.isEmpty()) {
+            val (block, nextStage) = blockUpdateQueue.poll()
+            block.type = nextStage
+        }
     }
 
     private fun isCopper(block: Block): Boolean {
