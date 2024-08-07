@@ -10,11 +10,15 @@ import org.bukkit.plugin.java.JavaPlugin
 import org.bukkit.scheduler.BukkitRunnable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 class CopperOxidize : JavaPlugin(), Listener {
 
     private val copperBlocks = ConcurrentHashMap<Block, Material>()
     private val blockUpdateQueue = ConcurrentLinkedQueue<Pair<Block, Material>>()
+    private val executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
+    private val updateCounter = AtomicInteger(0)
 
     override fun onEnable() {
         server.pluginManager.registerEvents(this, this)
@@ -22,7 +26,7 @@ class CopperOxidize : JavaPlugin(), Listener {
     }
 
     override fun onDisable() {
-        // Plugin shutdown logic
+        executorService.shutdown()
     }
 
     @EventHandler
@@ -61,9 +65,29 @@ class CopperOxidize : JavaPlugin(), Listener {
     }
 
     private fun processBlockUpdates() {
+        val batchSize = 1000
         while (!blockUpdateQueue.isEmpty()) {
-            val (block, nextStage) = blockUpdateQueue.poll()
-            block.type = nextStage
+            val batch = mutableListOf<Pair<Block, Material>>()
+            for (i in 0 until batchSize) {
+                val update = blockUpdateQueue.poll()
+                if (update != null) {
+                    batch.add(update)
+                } else {
+                    break
+                }
+            }
+            executorService.submit {
+                val updates = batch.map { (block, nextStage) ->
+                    block to nextStage
+                }
+                server.scheduler.runTask(this, Runnable {
+                    updates.forEach { (block, nextStage) ->
+                        block.type = nextStage
+                    }
+                })
+                updateCounter.addAndGet(-batch.size)
+            }
+            updateCounter.addAndGet(batch.size)
         }
     }
 
