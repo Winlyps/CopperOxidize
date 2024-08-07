@@ -53,7 +53,7 @@ class CopperOxidize : JavaPlugin(), Listener {
                     }
                 }
             }
-        }.runTaskTimer(this, 200L, 200L) // 200 ticks = 10 seconds
+        }.runTaskTimer(this, 30 * 60 * 20L, 30 * 60 * 20L) // 30 minutes = 30 * 60 * 20 ticks
     }
 
     private fun isCopper(block: Block): Boolean {
